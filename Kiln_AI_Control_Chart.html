@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kiln Carbon Control AI - Upgraded</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:         #0d0f12;
+  --surface:    #151820;
+  --surface2:   #1c2029;
+  --border:     #2a2f3d;
+  --border-hi:  #3d4560;
+  --amber:      #e8a020;
+  --green:      #27c97a;
+  --red:        #e84040;
+  --blue:       #4a9eff;
+  --purple:     #9b6fff;
+  --text:       #d8dce8;
+  --text-dim:   #7a8099;
+  --text-faint: #454a60;
+  --mono:       'Courier New', monospace;
+  --sans:       'Segoe UI', system-ui, sans-serif;
+  --radius:     6px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh;display:flex;flex-direction:column}
+
+/* ── Header & Navigation Tabs ── */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:16px}
+.hdr-icon{width:36px;height:36px;background:var(--purple);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.hdr-title{font-size:15px;font-weight:700;letter-spacing:.04em;color:#fff}
+.hdr-sub{font-size:11px;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+
+.tab-nav{display:flex;background:var(--surface2);border:1px solid var(--border);padding:4px;border-radius:6px;margin-left:40px;gap:4px}
+.tab-btn{background:transparent;border:none;color:var(--text-dim);padding:6px 16px;font-size:12px;font-weight:600;border-radius:4px;cursor:pointer;transition:all 0.15s}
+.tab-btn:hover{color:#fff;background:rgba(255,255,255,0.03)}
+.tab-btn.active{color:#fff;background:var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+
+.hist-status{margin-left:auto;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:6px 14px;font-family:var(--mono);font-size:11px;color:var(--text-dim);letter-spacing:.04em}
+.hist-status.loaded{border-color:#1d6640;color:var(--green)}
+
+/* ── View Containers ── */
+.view-container{display:none;max-width:1250px;width:100%;margin:0 auto;padding:24px 20px;animation:fadeIn 0.18s ease-out forwards}
+.view-container.active{display:grid}
+@keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
+.ctrl-layout{grid-template-columns:380px 1fr;gap:20px;align-items:start}
+.single-layout{grid-template-columns:1fr}
+
+/* ── Panels ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.panel-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--purple);box-shadow:0 0 6px rgba(155,111,255,0.4);flex-shrink:0}
+.dot-blue{background:var(--blue);box-shadow:0 0 6px rgba(74,158,255,0.4)}
+.dot-faint{background:var(--text-faint);box-shadow:none}
+
+/* ── CSV Upload Area ── */
+.csv-box{padding:20px;background:rgba(155,111,255,0.02);display:flex;flex-direction:column;gap:12px}
+.csv-dropzone{border:1px dashed var(--purple);border-radius:4px;padding:40px 20px;text-align:center;cursor:pointer;background:rgba(21,24,32,0.6);transition:background 0.2s}
+.csv-dropzone:hover{background:rgba(155,111,255,0.06)}
+.csv-dropzone input{display:none}
+
+/* ── Form Body ── */
+.form-body{padding:18px;display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase}
+.field-group-label{font-size:10px;font-weight:700;color:var(--purple);letter-spacing:.08em;text-transform:uppercase}
+.field-row{display:flex;gap:8px;align-items:center}
+.field input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:9px 12px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none}
+.field input:focus{border-color:var(--purple)}
+.field input.sticky{border-color:var(--border-hi);color:var(--text-dim)}
+.unit{font-family:var(--mono);font-size:11px;color:var(--text-faint);width:36px;text-align:right}
+.hint{font-size:10px;color:var(--text-faint);min-height:14px}
+.blue{color:var(--blue)}
+hr.div{border:none;border-top:1px solid var(--border);margin:4px 0}
+
+/* ── Buttons ── */
+.btn-row{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:10px;background:rgba(0,0,0,0.1)}
+.btn{flex:1;padding:10px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;border:1px solid transparent}
+.btn-primary{background:var(--purple);color:#fff}
+.btn-blue{background:var(--blue);color:#0d0f12}
+.btn-ghost{background:transparent;color:var(--text-dim);border-color:var(--border)}
+.btn-danger{background:transparent;color:var(--red);border-color:var(--red)}
+.save-status{font-size:11px;color:var(--text-dim);padding:0 16px 12px}
+
+/* ── Matrix Displays ── */
+.matrix-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;padding:16px}
+.matrix-card{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:12px 16px}
+.mc-lbl{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px}
+.mc-val{font-family:var(--mono);font-size:20px;font-weight:700;color:#fff}
+
+/* ── Output Box & Chart ── */
+.mandate-box{background:var(--surface);border:1px solid rgba(155,111,255,0.4);border-radius:var(--radius);overflow:hidden;margin-bottom:16px; display: flex;}
+.mandate-main{flex: 1;}
+.mandate-head{background:rgba(155,111,255,0.2);padding:8px 16px;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#fff;border-bottom:1px solid var(--border)}
+.mandate-body{padding:16px;display:flex;flex-direction:column;gap:12px}
+.mandate-row{display:flex;flex-direction:column;gap:3px}
+.mlabel{font-size:10px;color:var(--text-dim);letter-spacing:.08em;text-transform:uppercase}
+.mval{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--purple);line-height:1}
+.munit{font-size:11px;color:var(--text-dim);margin-top:2px}
+
+.chart-container { height: 220px; padding: 12px; background: var(--bg); border-left: 1px solid var(--border); width: 100%; max-width: 450px; }
+
+.info-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.info-rows{display:grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border);}
+.info-row{background: var(--surface); padding:8px 16px; font-size:12px; display:flex; justify-content:space-between; align-items: baseline;}
+.ikey{color:var(--text-dim)}
+.ival{font-family:var(--mono);font-size:13px}
+.status-msg{padding:10px 16px;border-radius:4px;font-size:12px;line-height:1.5;border:1px solid var(--border);background:var(--surface2)}
+.status-msg.good{border-color:#1d6640;color:var(--green);background:#0d1f16}
+
+/* ── Tracking Pipes & Logs ── */
+.pipe-track{display:flex;gap:8px;padding:12px 16px}
+.pipe-slot{flex:1;border-radius:4px;padding:8px 10px;background:var(--bg);border:1px solid var(--border);font-size:10px}
+.ps-label{color:var(--text-faint);text-transform:uppercase;margin-bottom:4px}
+.ps-val{font-family:var(--mono);font-size:12px;color:var(--text-dim)}
+.pipe-slot.active{border-color:rgba(155,111,255,0.4);background:rgba(155,111,255,0.02)}
+.pipe-slot.active .ps-val{color:var(--purple)}
+.pipe-slot.exiting{border-color:#1d6640;background:#0d1f16}
+.pipe-slot.exiting .ps-val{color:var(--green)}
+
+.log-entries{max-height:150px;overflow-y:auto}
+.log-entry{padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:12px;font-size:11px;font-family:var(--mono)}
+.empty-state{padding:24px 16px;text-align:center;color:var(--text-faint);font-size:12px}
+
+.mapper-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px;padding:12px;background:var(--surface2);border-radius:4px;border:1px solid var(--border)}
+.decimal-toggle{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:11px;color:var(--text-dim);cursor:pointer;line-height:1.4}
+.decimal-toggle input{width:14px;height:14px;margin-top:1px;accent-color:var(--purple);cursor:pointer;flex-shrink:0}
+.map-field{display:flex;flex-direction:column;gap:4px}
+.map-field label{font-size:10px;color:var(--text-dim);text-transform:uppercase}
+.map-select{background:var(--bg);color:var(--text);border:1px solid var(--border);padding:6px;font-size:11px;border-radius:3px;outline:none}
+.ctable{width:100%;border-collapse:collapse}
+.ctable td{padding:7px 18px;border-bottom:1px solid var(--border);font-size:13px}
+.cf-label{color:var(--text-dim)}
+.cf-val{font-family:var(--mono);text-align:right;color:#fff;font-weight:600}
+.cf-unit{color:var(--text-faint);font-family:var(--mono);font-size:11px;padding-left:6px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-icon">🤖</div>
+  <div>
+    <div class="hdr-title">KILN CARBON CONTROL AI</div>
+    <div class="hdr-sub">Predictive Multi-Variable Regression Engine (Adaptive Loop Enabled)</div>
+  </div>
+  
+  <div class="tab-nav">
+    <button class="tab-btn active" id="nav-active">🚀 Active Control Cabin</button>
+    <button class="tab-btn" id="nav-history">📊 Historical AI Core</button>
+  </div>
+
+  <div class="hist-status" id="hdr-status">Using Factory Default AI Matrix</div>
+</header>
+
+<div class="view-container ctrl-layout active" id="active-tab-view">
+  
+  <div>
+    <div class="panel">
+      <div class="panel-head"><div class="dot"></div>Active 2-Hour Production Data Entry</div>
+      <div class="form-body">
+        <div class="field-group-label">SRP Hopper 22</div>
+        <div class="field">
+          <label>Wet Feed Mass Flow</label>
+          <div class="field-row"><input type="number" id="h22_wet_feed" placeholder="e.g. 10.2" step="0.1"/><div class="unit">TPH</div></div>
+          <div class="hint">Wet tonnage from Hopper 22 entering the kiln mouth</div>
+        </div>
+        <div class="field">
+          <label>Ca / Si Ratio</label>
+          <div class="field-row"><input type="number" id="h22_ca_si" placeholder="e.g. 1.20" step="0.01"/><div class="unit"></div></div>
+          <div class="hint">Basicity flux metric for material in Hopper 22</div>
+        </div>
+
+        <div class="field-group-label">SRP Hopper 23</div>
+        <div class="field">
+          <label>Wet Feed Mass Flow</label>
+          <div class="field-row"><input type="number" id="h23_wet_feed" placeholder="e.g. 8.3" step="0.1"/><div class="unit">TPH</div></div>
+          <div class="hint">Wet tonnage from Hopper 23 entering the kiln mouth</div>
+        </div>
+        <div class="field">
+          <label>Ca / Si Ratio</label>
+          <div class="field-row"><input type="number" id="h23_ca_si" placeholder="e.g. 1.20" step="0.01"/><div class="unit"></div></div>
+          <div class="hint">Basicity flux metric for material in Hopper 23</div>
+        </div>
+        <div class="hint"><span class="blue">Leave a hopper's fields blank if it isn't feeding this cycle — it's excluded from the blend.</span></div>
+        <hr class="div"/>
+        <div class="field">
+          <label>Feed Moisture Content</label>
+          <div class="field-row"><input type="number" id="feed_moist" placeholder="e.g. 8.0" step="0.1"/><div class="unit">%</div></div>
+          <div class="hint" id="hint-feed_moist"></div>
+        </div>
+        <div class="field">
+          <label>Carbon Moisture Content</label>
+          <div class="field-row"><input type="number" id="carb_moist" placeholder="e.g. 5.0" step="0.1"/><div class="unit">%</div></div>
+          <div class="hint" id="hint-carb_moist"></div>
+        </div>
+        <hr class="div"/>
+        <div class="field">
+          <label>Byproduct Zinc Grade (Lab Sample)</label>
+          <div class="field-row"><input type="number" id="zn_grade" placeholder="e.g. 2.10" step="0.01"/><div class="unit">%</div></div>
+          <div class="hint">Laboratory measurement of the material exiting discharge right now</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-clear">Clear Fields</button>
+        <button class="btn btn-primary" id="btn-show-confirm">Execute AI Equation →</button>
+      </div>
+    </div>
+
+    <div class="panel" id="confirm-panel" style="display:none">
+      <div class="panel-head"><div class="dot dot-blue"></div>Verify Current Production Figures</div>
+      <table class="ctable" id="confirm-table"></table>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-hide-confirm">← Go Back</button>
+        <button class="btn btn-primary" id="btn-run-ai">Confirm & Predict</button>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="mandate-box">
+      <div class="mandate-main">
+        <div class="mandate-head">⚡ AI Optimized Feeder Mandate</div>
+        <div class="mandate-body" id="mandate-body">
+          <div class="empty-state">Submit active criteria to execute regression equation</div>
+        </div>
+      </div>
+      <div class="chart-container" id="chart-wrap">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <div class="info-panel" id="diag-panel" style="display:none">
+      <div class="panel-head"><div class="dot dot-blue"></div>Operational Diagnostics & Model Confidence</div>
+      <div class="info-rows" id="diag-rows"></div>
+      <div style="padding:10px 16px 14px"><div class="status-msg" id="status-msg"></div></div>
+    </div>
+
+    <div class="info-panel">
+      <div class="panel-head"><div class="dot dot-faint"></div>4-Hour Physical Material Pipeline</div>
+      <div class="pipe-track" id="pipe-track"></div>
+    </div>
+
+    <div class="info-panel">
+      <div class="panel-head"><div class="dot dot-faint"></div>Shift Log History & Audit Trail</div>
+      <div class="log-entries" id="log-entries"><div class="empty-state">No actions logged during this session</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="view-container single-layout" id="history-tab-view">
+  <div class="panel">
+    <div class="panel-head"><div class="dot"></div>One-Time 2026 Master History Upload</div>
+    <div class="csv-box">
+      <p style="font-size:12px; color:var(--text-dim); line-height:1.5">
+        Drop your updated spreadsheet file here. The mathematical matrix will read columns to instantly run a Least Squares Regression training sequence. 
+        <br><br><span style="color:var(--amber)"><b>Continuous Learning Active:</b> Once initialized, every new shift cycle run in the Active Cabin will automatically update these weights.</span>
+      </p>
+      
+      <div class="csv-dropzone" id="csv-dropzone">
+        <input type="file" id="csv-file" accept=".csv,.xlsx,.xls"/>
+        <span id="csv-prompt" style="color:var(--purple); font-size:13px; font-weight:600">📂 Drag & Drop or Click to Load Master Spreadsheet</span>
+      </div>
+
+      <div id="csv-mapper-area" style="display:none; margin-top:5px">
+        <div style="font-size:11px; color:var(--text-dim); margin-bottom:6px; font-weight:600">Confirm Column Mapping Names:</div>
+        <div class="mapper-grid">
+          <div class="map-field"><label>Timestamp</label><select id="map-ts" class="map-select"></select></div>
+          <div class="map-field"><label>Pellet Rate</label><select id="map-feed" class="map-select"></select></div>
+          <div class="map-field"><label>Carbon Rate</label><select id="map-carb" class="map-select"></select></div>
+          <div class="map-field"><label>Ca/Si Flux</label><select id="map-casi" class="map-select"></select></div>
+          <div class="map-field"><label>Zinc Grade</label><select id="map-zn" class="map-select"></select></div>
+        </div>
+        <label class="decimal-toggle">
+          <input type="checkbox" id="zn-decimal-toggle"/>
+          <span>Zn% column is stored as a decimal fraction (e.g. <b>0.021</b> meaning 2.1%), not a plain percent number — convert automatically (×100) on import. <span id="zn-decimal-hint" class="blue"></span></span>
+        </label>
+        <button class="btn btn-blue" style="margin-top:12px; width:100%" id="btn-train">Train AI Predictive Model</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><div class="dot" style="background:var(--green)"></div>Trained AI Predictive Weights (Adaptive Slag Equation)</div>
+    <div style="padding:16px; font-size:12px; color:var(--text-dim); border-bottom:1px solid var(--border); line-height:1.4">
+      Below are the dynamic parameters generated from historical and live data. The AI continuously solves the mathematical matrix for: <br/>
+      <code style="color:var(--purple); font-family:var(--mono); font-weight:bold; font-size:13px">Target Carbon % = Intercept + (W1 × Pellet TPH) + (W2 × Ca/Si Spike) + (W3 × TARGET: 0%)</code>
+    </div>
+    <div class="matrix-grid">
+      <div class="matrix-card"><div class="mc-lbl">Algorithmic Intercept (Base)</div><div class="mc-val" id="ai-intercept">15.000</div></div>
+      <div class="matrix-card"><div class="mc-lbl">W1: Pellet Mass Coefficient</div><div class="mc-val" id="ai-w1">0.000</div></div>
+      <div class="matrix-card"><div class="mc-lbl">W2: Ca/Si Basicity Coefficient</div><div class="mc-val" id="ai-w2">0.500</div></div>
+      <div class="matrix-card"><div class="mc-lbl">W3: Target Zinc Correction Weight</div><div class="mc-val" id="ai-w3">-0.450</div></div>
+      <div class="matrix-card" style="border-color:var(--purple)"><div class="mc-lbl">Model Confidence (RMSE)</div><div class="mc-val" id="ai-rmse">±0.25%</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><div class="dot dot-blue"></div>Local Session Backup</div>
+    <div style="padding:16px 16px 4px; font-size:12px; color:var(--text-dim); line-height:1.5">
+      Everything above — shift history, trained weights, the pipeline, and the log — auto-saves to this browser after every cycle, so closing and reopening this file keeps your data. That auto-save only works in <i>this</i> browser though, so use <b>Download Backup</b> before switching computers, and treat it as your safety copy in general.
+    </div>
+    <div class="save-status" id="save-status">Not yet saved this session.</div>
+    <div class="btn-row">
+      <button class="btn btn-blue" id="btn-backup-download">Download Backup</button>
+      <button class="btn btn-ghost" id="btn-backup-restore">Restore Backup</button>
+      <button class="btn btn-danger" id="btn-backup-clear">Clear Local Data</button>
+    </div>
+    <input type="file" id="backup-file" accept=".json" style="display:none"/>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Configuration — the actual tunable process parameters live
+// here instead of scattered inline through the functions that
+// use them.
+// ============================================================
+const CONFIG = {
+  targetZinc: 0.0,             // Ideal byproduct zinc grade (%) the dosing model targets
+  zincCorrectionUp: 0.7,       // Carbon-target sensitivity when live zinc is ABOVE target
+  zincCorrectionDown: 0.4,     // Carbon-target sensitivity when live zinc is BELOW target
+  carbonPctMax: 18.5,          // Upper clamp on predicted carbon %
+  carbonPctMin: 12.0,          // Lower clamp on predicted carbon %
+  pipelineYieldFactor: 0.92,   // Wet→dry estimate used when seeding the pipeline from history
+  chartWindow: 10,             // Points kept on the live trend chart
+  chartYMax: 8.0,              // Y-axis ceiling for the trend chart
+  acceptableZincCeiling: 2.0,  // Flat reference line for the "acceptable" zinc band
+  minTrainingRows: 4,          // Minimum rows needed to solve the 4-parameter regression
+  defaults: {
+    ca_si: 1.20,
+    feed_moist: 8.0,
+    carb_moist: 5.0,
+    zn_grade_hist: 2.0,
+    carbon_hist: 15.0
+  }
+};
+
+// ============================================================
+// Small DOM / parsing helpers
+// ============================================================
+const $ = id => document.getElementById(id);
+
+// Reads a live input field: blank → fallback, otherwise the parsed number.
+// Checks specifically for the empty string rather than JS truthiness, so a
+// genuine "0" reading is never treated the same as a blank field.
+function numOr(id, fallback) {
+  const raw = $(id).value;
+  return raw === '' ? fallback : parseFloat(raw);
+}
+
+// Parses an arbitrary string (e.g. a CSV cell): unparseable → fallback,
+// otherwise the parsed number. Uses Number.isNaN rather than `|| fallback`
+// so a genuine 0 in imported data is never mistaken for a missing value.
+function parseOr(raw, fallback) {
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? fallback : n;
+}
+
+// ============================================================
+// Secure Event Listeners (Bypasses Browser Inline Blocks)
+// ============================================================
+$('nav-active').addEventListener('click', function() { switchTab('active-tab-view', this); });
+$('nav-history').addEventListener('click', function() { switchTab('history-tab-view', this); });
+$('btn-clear').addEventListener('click', clearInputs);
+$('btn-show-confirm').addEventListener('click', showConfirm);
+$('btn-hide-confirm').addEventListener('click', hideConfirm);
+$('btn-run-ai').addEventListener('click', runAiCalculation);
+$('csv-dropzone').addEventListener('click', () => $('csv-file').click());
+$('csv-file').addEventListener('change', function() { handleHistoryImport(this.files[0]); });
+$('btn-train').addEventListener('click', commitImportedData);
+$('map-zn').addEventListener('change', refreshZnDecimalSuggestion);
+$('btn-backup-download').addEventListener('click', downloadBackup);
+$('btn-backup-restore').addEventListener('click', () => $('backup-file').click());
+$('backup-file').addEventListener('change', function() { restoreFromFile(this.files[0]); this.value = ''; });
+$('btn-backup-clear').addEventListener('click', clearLocalData);
+
+// ── Tab Navigation Logic ──
+function switchTab(viewId, btnEl) {
+  document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  $(viewId).classList.add('active');
+  btnEl.classList.add('active');
+}
+
+// ============================================================
+// AI model state
+// ============================================================
+let AI_MODEL = {
+  intercept: 15.12,
+  w_pellet: -0.05,
+  w_casi: 1.54,
+  w_zn: -0.62,
+  rmse: 0.25 // Root Mean Square Error (Confidence Margin)
+};
+
+// "Sticky" fields: values an operator can leave blank to inherit the
+// previous cycle's entry. Both fields are driven off this one list instead
+// of being hand-duplicated per field in every function that touches them.
+const STICKY_FIELDS = ['feed_moist', 'carb_moist'];
+let stickyValues = { feed_moist: null, carb_moist: null };
+
+let rawFileHeaders = [], rawFileRows = [], databaseHistory = [], shiftLog = [], cycle = 1;
+let pipeline = [
+  { dry_feed_tph: 16.2, applied_carbon_pct: 15.1 },
+  { dry_feed_tph: 15.9, applied_carbon_pct: 15.3 }
+];
+
+// ============================================================
+// Chart.js initialization
+// ============================================================
+let zincChartInstance = null;
+const chartLabels = [];
+const actualZincData = [];
+const acceptableZoneData = []; // Holds the flat "acceptable ceiling" value for the green zone
+
+function initChart() {
+  const ctx = $('trendChart').getContext('2d');
+  Chart.defaults.color = '#7a8099';
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+  zincChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: chartLabels,
+      datasets: [
+        {
+          label: `Acceptable Range (0-${CONFIG.acceptableZincCeiling}%)`,
+          data: acceptableZoneData,
+          borderColor: '#27c97a',
+          backgroundColor: 'rgba(39, 201, 122, 0.15)',
+          borderWidth: 1,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          fill: 'origin', // Fills the background underneath the ceiling line down to 0
+          tension: 0
+        },
+        {
+          label: 'Lab Zinc % (Actual)',
+          data: actualZincData,
+          borderColor: '#4a9eff',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 4,
+          tension: 0.3,
+          fill: false // No fill, so the blue actuals sit cleanly on top of the green zone
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10 } } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        y: { grid: { color: '#2a2f3d' }, min: 0.0, max: CONFIG.chartYMax },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function updateChart(cycleNum, actualZn) {
+  if (!zincChartInstance) initChart();
+  $('chart-wrap').style.display = 'block';
+
+  chartLabels.push(`C-${cycleNum}`);
+  actualZincData.push(actualZn);
+  acceptableZoneData.push(CONFIG.acceptableZincCeiling);
+
+  if (chartLabels.length > CONFIG.chartWindow) {
+    chartLabels.shift();
+    actualZincData.shift();
+    acceptableZoneData.shift();
+  }
+
+  zincChartInstance.update();
+}
+
+// ============================================================
+// History import (CSV / XLSX)
+// ============================================================
+function handleHistoryImport(file) {
+  if (!file) return;
+  $('csv-prompt').textContent = `AI Core Training on: ${file.name}...`;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    if (json.length < CONFIG.minTrainingRows + 1) {
+      alert('Insufficient historical lines to train multi-variable model.');
+      return;
+    }
+
+    rawFileHeaders = json[0].map(h => String(h).trim());
+    rawFileRows = json.slice(1).filter(r => r.some(c => c !== ''));
+
+    populateSelectFields();
+
+    const tsVal = $('map-ts').value, feedVal = $('map-feed').value, carbVal = $('map-carb').value,
+          casiVal = $('map-casi').value, znVal = $('map-zn').value;
+
+    if (tsVal && feedVal && carbVal && casiVal && znVal) {
+      $('csv-mapper-area').style.display = 'none';
+      commitImportedData();
+    } else {
+      $('csv-mapper-area').style.display = 'block';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function populateSelectFields() {
+  const ids = ['map-ts', 'map-feed', 'map-carb', 'map-casi', 'map-zn'];
+  ids.forEach(id => {
+    $(id).innerHTML = rawFileHeaders.map(h => `<option value="${h}">${h}</option>`).join('');
+  });
+
+  const match = (kws, id) => {
+    const found = rawFileHeaders.find(h => kws.some(kw => h.toLowerCase().includes(kw)));
+    if (found) $(id).value = found;
+  };
+  match(['date', 'time', 'timestamp'], 'map-ts');
+  match(['pellet', 'feed', 'tonnage', 'tph'], 'map-feed');
+  match(['carbon', 'reductant', 'rate', 'c%'], 'map-carb');
+  match(['ca/si', 'basi', 'flux', 'ratio'], 'map-casi');
+  match(['zinc', 'zn', 'grade'], 'map-zn');
+
+  refreshZnDecimalSuggestion();
+}
+
+// Excel columns formatted as "Percentage" store the underlying fraction
+// (0.021) rather than the number Excel displays (2.10%). Real zinc grades in
+// this process run roughly 0-8% (see the chart's y-axis ceiling), so if every
+// non-blank value in the mapped column is under 1, it's almost certainly that
+// Excel-fraction case rather than a genuinely sub-1% dataset — pre-check the
+// conversion toggle accordingly. The checkbox itself is still the operator's
+// call to make: this only sets a sensible default.
+function detectDecimalZinc(znCol) {
+  if (znCol < 0) return false;
+  const values = rawFileRows.map(row => parseFloat(row[znCol])).filter(v => !Number.isNaN(v));
+  if (values.length === 0) return false;
+  return Math.max(...values) < 1;
+}
+
+function refreshZnDecimalSuggestion() {
+  const znCol = rawFileHeaders.indexOf($('map-zn').value);
+  const likelyDecimal = detectDecimalZinc(znCol);
+  $('zn-decimal-toggle').checked = likelyDecimal;
+  $('zn-decimal-hint').textContent = likelyDecimal
+    ? '(detected automatically — every value in this column is under 1)'
+    : '';
+}
+
+function commitImportedData() {
+  const feedCol = rawFileHeaders.indexOf($('map-feed').value);
+  const carbCol = rawFileHeaders.indexOf($('map-carb').value);
+  const casiCol = rawFileHeaders.indexOf($('map-casi').value);
+  const znCol = rawFileHeaders.indexOf($('map-zn').value);
+  const znScale = $('zn-decimal-toggle').checked ? 100 : 1;
+
+  // Scaling applies only to genuinely-parsed cell values, never to the
+  // fallback default — CONFIG.defaults.zn_grade_hist is already expressed
+  // in percent terms regardless of how the source column was formatted.
+  const parseZn = raw => {
+    const n = parseFloat(raw);
+    return Number.isNaN(n) ? CONFIG.defaults.zn_grade_hist : n * znScale;
+  };
+
+  databaseHistory = rawFileRows.map(row => ({
+    feed: parseOr(row[feedCol], 0),
+    carbon: parseOr(row[carbCol], CONFIG.defaults.carbon_hist),
+    casi: parseOr(row[casiCol], CONFIG.defaults.ca_si),
+    zn: parseZn(row[znCol])
+  })).filter(item => item.feed > 0 && !Number.isNaN(item.zn));
+
+  trainPredictiveAiModel();
+
+  const lastRows = databaseHistory.slice(-2);
+  pipeline = lastRows.map(e => ({ dry_feed_tph: e.feed * CONFIG.pipelineYieldFactor, applied_carbon_pct: e.carbon }));
+
+  // --- Populate chart from history ---
+  if (!zincChartInstance) initChart();
+
+  chartLabels.length = 0;
+  actualZincData.length = 0;
+  acceptableZoneData.length = 0;
+
+  const recentHistory = databaseHistory.slice(-CONFIG.chartWindow);
+  recentHistory.forEach((row, index) => {
+    chartLabels.push(`Hist-${index + 1}`);
+    actualZincData.push(row.zn);
+    acceptableZoneData.push(CONFIG.acceptableZincCeiling);
+  });
+  zincChartInstance.update();
+  // ----------------------------------------
+
+  const znNote = znScale === 100 ? ' — Zn% ×100 applied' : '';
+  $('hdr-status').textContent = `✓ Adaptive Model Synced (${databaseHistory.length} Rows)${znNote}`;
+  $('hdr-status').className = 'hist-status loaded';
+  $('csv-prompt').textContent = `✅ Dynamic Machine Learning Grid Locked In!`;
+  $('csv-mapper-area').style.display = 'none';
+
+  updateHistoryUI();
+  renderPipeline();
+  saveState();
+}
+
+function updateHistoryUI() {
+  $('ai-intercept').textContent = AI_MODEL.intercept.toFixed(4);
+  $('ai-w1').textContent = AI_MODEL.w_pellet.toFixed(4);
+  $('ai-w2').textContent = AI_MODEL.w_casi.toFixed(4);
+  $('ai-w3').textContent = AI_MODEL.w_zn.toFixed(4);
+  $('ai-rmse').textContent = `±${AI_MODEL.rmse.toFixed(2)}%`;
+}
+
+// ============================================================
+// Regression engine
+//
+// Solves carbon = intercept + w1·feed + w2·casi + w3·zn as a genuine
+// multivariate least-squares fit via the normal equations, rather than
+// three independent single-variable regressions summed together. The
+// previous approach ignored correlation between feed, Ca:Si, and zinc —
+// which matters here, since all three move together with kiln state.
+// ============================================================
+
+// Solves the n×n system A·x = b via Gauss-Jordan elimination with partial
+// pivoting. Returns the solution vector, or null if the system is singular
+// (not enough independent data to solve it yet).
+function solveLinearSystem(A, b) {
+  const n = b.length;
+  const M = A.map((row, i) => [...row, b[i]]);
+
+  for (let col = 0; col < n; col++) {
+    let pivotRow = col;
+    for (let r = col + 1; r < n; r++) {
+      if (Math.abs(M[r][col]) > Math.abs(M[pivotRow][col])) pivotRow = r;
+    }
+    if (Math.abs(M[pivotRow][col]) < 1e-9) return null;
+    [M[col], M[pivotRow]] = [M[pivotRow], M[col]];
+
+    const pivotVal = M[col][col];
+    for (let c = col; c <= n; c++) M[col][c] /= pivotVal;
+
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const factor = M[r][col];
+      for (let c = col; c <= n; c++) M[r][c] -= factor * M[col][c];
+    }
+  }
+  return M.map(row => row[n]);
+}
+
+function trainPredictiveAiModel() {
+  const n = databaseHistory.length;
+  if (n < CONFIG.minTrainingRows) return; // not enough independent points — keep current weights
+
+  let sums = { x1:0,x2:0,x3:0, x1x1:0,x1x2:0,x1x3:0, x2x2:0,x2x3:0, x3x3:0, y:0, x1y:0,x2y:0,x3y:0 };
+  databaseHistory.forEach(d => {
+    const x1 = d.feed, x2 = d.casi, x3 = d.zn, y = d.carbon;
+    sums.x1 += x1; sums.x2 += x2; sums.x3 += x3; sums.y += y;
+    sums.x1x1 += x1*x1; sums.x1x2 += x1*x2; sums.x1x3 += x1*x3;
+    sums.x2x2 += x2*x2; sums.x2x3 += x2*x3; sums.x3x3 += x3*x3;
+    sums.x1y += x1*y; sums.x2y += x2*y; sums.x3y += x3*y;
+  });
+
+  const XtX = [
+    [n,      sums.x1,   sums.x2,   sums.x3],
+    [sums.x1, sums.x1x1, sums.x1x2, sums.x1x3],
+    [sums.x2, sums.x1x2, sums.x2x2, sums.x2x3],
+    [sums.x3, sums.x1x3, sums.x2x3, sums.x3x3]
+  ];
+  const Xty = [sums.y, sums.x1y, sums.x2y, sums.x3y];
+
+  const solution = solveLinearSystem(XtX, Xty);
+  if (solution) {
+    [AI_MODEL.intercept, AI_MODEL.w_pellet, AI_MODEL.w_casi, AI_MODEL.w_zn] = solution;
+  }
+  // else: system was singular (e.g. degenerate/duplicate rows) — keep the
+  // last good weights rather than let a solve failure produce garbage
+
+  let sse = 0;
+  databaseHistory.forEach(d => {
+    const predicted = AI_MODEL.intercept + AI_MODEL.w_pellet*d.feed + AI_MODEL.w_casi*d.casi + AI_MODEL.w_zn*d.zn;
+    sse += (predicted - d.carbon) ** 2;
+  });
+  AI_MODEL.rmse = Math.sqrt(sse / n); // always a valid number here — n > 0 is guaranteed above
+}
+
+// ============================================================
+// Live cycle calculation
+// ============================================================
+// Combines the two hoppers into a single effective wet feed (sum) and a
+// single effective Ca/Si ratio (mass-weighted average across whichever
+// hoppers are actually feeding this cycle). Shared by showConfirm() and
+// runAiCalculation() so the confirmation preview can never disagree with
+// the math that actually runs. A hopper contributing 0 TPH has zero weight
+// in the blend regardless of its Ca/Si reading, so an idle/blank hopper
+// never skews the result.
+function resolveHopperBlend() {
+  const h22Feed = numOr('h22_wet_feed', 0);
+  const h23Feed = numOr('h23_wet_feed', 0);
+  const h22Casi = numOr('h22_ca_si', CONFIG.defaults.ca_si);
+  const h23Casi = numOr('h23_ca_si', CONFIG.defaults.ca_si);
+  const wf = h22Feed + h23Feed;
+  const cs = wf > 0 ? (h22Feed * h22Casi + h23Feed * h23Casi) / wf : CONFIG.defaults.ca_si;
+  return { h22Feed, h23Feed, h22Casi, h23Casi, wf, cs };
+}
+
+function runAiCalculation() {
+  const { wf, cs } = resolveHopperBlend();
+  const fm = numOr('feed_moist', stickyValues.feed_moist ?? CONFIG.defaults.feed_moist);
+  const cm = numOr('carb_moist', stickyValues.carb_moist ?? CONFIG.defaults.carb_moist);
+  const zn = numOr('zn_grade', 0);
+
+  const dryFeedWeight = wf * (1.0 - fm / 100.0);
+
+  const zincErrorDelta = zn - CONFIG.targetZinc;
+  const zincSensitivity = zincErrorDelta > 0 ? CONFIG.zincCorrectionUp : CONFIG.zincCorrectionDown;
+  const zincAdjustment = zincErrorDelta > 0
+    ? (zincErrorDelta * Math.abs(AI_MODEL.w_zn) * zincSensitivity)
+    : -(Math.abs(zincErrorDelta) * Math.abs(AI_MODEL.w_zn) * zincSensitivity);
+
+  let predictedCarbonTarget = AI_MODEL.intercept + (AI_MODEL.w_pellet * dryFeedWeight) + (AI_MODEL.w_casi * cs) + (AI_MODEL.w_zn * CONFIG.targetZinc) + zincAdjustment;
+  predictedCarbonTarget = Math.min(CONFIG.carbonPctMax, Math.max(CONFIG.carbonPctMin, predictedCarbonTarget));
+
+  const targetDryCarbonTph = (predictedCarbonTarget / 100.0) * dryFeedWeight;
+  const wetCarbonRequiredTph = targetDryCarbonTph / (1.0 - cm / 100.0);
+  const scaleSetpointRatioPct = (wetCarbonRequiredTph / wf) * 100.0;
+
+  // ── Continuous adaptive learning loop ──
+  databaseHistory.push({ feed: dryFeedWeight, carbon: predictedCarbonTarget, casi: cs, zn: zn });
+  trainPredictiveAiModel();
+  updateHistoryUI();
+
+  // ── Update live trend plot ──
+  updateChart(cycle, zn);
+
+  pipeline.shift();
+  pipeline.push({ dry_feed_tph: dryFeedWeight, applied_carbon_pct: predictedCarbonTarget });
+  stickyValues.feed_moist = fm;
+  stickyValues.carb_moist = cm;
+
+  $('mandate-body').innerHTML = `
+    <div class="mandate-row">
+      <div class="mlabel">Calculated Wet Carbon Target <span style="color:var(--amber); text-transform:none">(±${AI_MODEL.rmse.toFixed(2)}% Conf)</span></div>
+      <div class="mval">${wetCarbonRequiredTph.toFixed(3)}</div>
+      <div class="munit">Tons Per Hour (TPH)</div>
+    </div>
+    <div class="mandate-row" style="margin-top: 6px;">
+      <div class="mlabel">Feeder Controller Scale Setpoint</div>
+      <div class="mval" style="color:var(--purple);">${scaleSetpointRatioPct.toFixed(3)}</div>
+      <div class="munit">% of Total Mass Flow Weight Ratio</div>
+    </div>`;
+
+  $('diag-rows').innerHTML = `
+    <div class="info-row"><span class="ikey">Calculated Dry Feed Mass</span><span class="ival">${dryFeedWeight.toFixed(2)} TPH</span></div>
+    <div class="info-row"><span class="ikey">Statistical AI Intercept Base</span><span class="ival">${AI_MODEL.intercept.toFixed(2)}%</span></div>
+    <div class="info-row"><span class="ikey">Blended Ca/Si Ratio Used (H22+H23)</span><span class="ival">${cs.toFixed(3)}</span></div>
+    <div class="info-row"><span class="ikey">Ca/Si Basicity Contribution</span><span class="ival" style="color:var(--amber); font-weight:bold;">+${(AI_MODEL.w_casi * cs).toFixed(2)}%</span></div>
+    <div class="info-row"><span class="ikey">Zinc Feedback Deviation Adjust</span><span class="ival">${zincAdjustment >= 0 ? '+' : ''}${zincAdjustment.toFixed(2)}%</span></div>`;
+
+  const msgBox = $('status-msg');
+  msgBox.textContent = `Continuous Learning Triggered: Model ingested cycle ${cycle} data and retrained matrix weights to account for new basicity coefficient (${cs.toFixed(2)}).`;
+  msgBox.className = 'status-msg good';
+  $('diag-panel').style.display = 'block';
+
+  const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  shiftLog.unshift(`Cycle ${cycle} [${timeString}]: Retrained on Lab Zn ${zn.toFixed(2)}% → New Model Base: ${AI_MODEL.intercept.toFixed(2)}`);
+  $('log-entries').innerHTML = shiftLog.map(log => `<div class="log-entry">${log}</div>`).join('');
+
+  cycle++; renderPipeline(); hideConfirm(); clearInputs();
+  saveState();
+}
+
+function showConfirm() {
+  const h22Feed = numOr('h22_wet_feed', 0);
+  const h23Feed = numOr('h23_wet_feed', 0);
+  if (h22Feed + h23Feed <= 0 || !$('zn_grade').value) {
+    alert('Please enter at least one hopper\'s wet feed and the current zinc grade before running AI calculations.');
+    return;
+  }
+
+  // Reflect any inherited ("sticky") value onto the actual input so the
+  // operator can see — and override if they want — what will be used.
+  STICKY_FIELDS.forEach(id => {
+    const el = $(id);
+    if (el.value === '' && stickyValues[id] !== null) {
+      el.value = stickyValues[id];
+      el.classList.add('sticky');
+    }
+  });
+
+  // Resolve every field exactly the way runAiCalculation() will, so this
+  // preview can never disagree with the math that actually runs.
+  const blend = resolveHopperBlend();
+  const resolved = {
+    feed_moist: numOr('feed_moist', stickyValues.feed_moist ?? CONFIG.defaults.feed_moist),
+    carb_moist: numOr('carb_moist', stickyValues.carb_moist ?? CONFIG.defaults.carb_moist),
+    zn_grade: numOr('zn_grade', 0)
+  };
+
+  const metrics = [
+    ['SRP Hopper 22 — Wet Feed', blend.h22Feed, 'TPH', false],
+    ['SRP Hopper 22 — Ca/Si Ratio', blend.h22Casi, '', false],
+    ['SRP Hopper 23 — Wet Feed', blend.h23Feed, 'TPH', false],
+    ['SRP Hopper 23 — Ca/Si Ratio', blend.h23Casi, '', false],
+    ['Combined Wet Feed (H22 + H23)', blend.wf, 'TPH', true],
+    ['Blended Ca/Si Ratio', blend.cs, '', true],
+    ['Raw Feed Matrix Moisture', resolved.feed_moist, '%', false],
+    ['Carbon Fuel Source Moisture', resolved.carb_moist, '%', false],
+    ['Byproduct Discharged Zinc Grade', resolved.zn_grade, '%', false]
+  ];
+  $('confirm-table').innerHTML = metrics.map(([lbl, val, unit, highlight]) => `
+    <tr><td class="cf-label"${highlight ? ' style="color:var(--purple)"' : ''}>${lbl}</td><td class="cf-val">${val.toFixed(2)}</td><td class="cf-unit">${unit}</td></tr>`).join('');
+  $('confirm-panel').style.display = 'block';
+}
+
+function renderPipeline() {
+  const layouts = [
+    { label: 'Exiting Kiln Discharge Right Now', cls: 'exiting' },
+    { label: 'Mid-Kiln Zone (Exits in 2 Hours)', cls: 'active' }
+  ];
+  $('pipe-track').innerHTML = pipeline.map((p, i) => `
+    <div class="pipe-slot ${layouts[i].cls}">
+      <div class="ps-label">${layouts[i].label}</div>
+      <div class="ps-val">${p.applied_carbon_pct.toFixed(2)}% Carbon Target</div>
+      <div class="ps-val" style="font-size:10px; color:var(--text-dim); margin-top:2px">Dry Weight: ${p.dry_feed_tph.toFixed(1)} TPH</div>
+    </div>`).join('');
+}
+
+function hideConfirm() { $('confirm-panel').style.display = 'none'; }
+
+function clearInputs() {
+  ['h22_wet_feed', 'h22_ca_si', 'h23_wet_feed', 'h23_ca_si', 'zn_grade', 'feed_moist', 'carb_moist'].forEach(id => {
+    $(id).value = '';
+    $(id).classList.remove('sticky');
+  });
+  STICKY_FIELDS.forEach(id => {
+    if (stickyValues[id] !== null) {
+      $(`hint-${id}`).innerHTML = `<span class="blue">Prior: ${stickyValues[id].toFixed(1)}% (Leave blank to inherit)</span>`;
+    }
+  });
+}
+
+// ============================================================
+// Local persistence
+//
+// This file has no server — it's opened directly off disk — so the only
+// place session data can live is the browser itself. Two layers, on purpose:
+//
+//   1. Auto-save to localStorage, tied to this exact file's location. Zero
+//      effort, but browsers don't formally guarantee localStorage behavior
+//      for file:// pages, and it obviously won't follow you to a different
+//      computer or browser.
+//   2. Manual JSON backup/restore (Download Backup / Restore Backup). This
+//      always works regardless of browser quirks, and is how you move
+//      state to a new machine or archive a shift.
+//
+// Both read/write the exact same snapshot shape, so they stay in sync.
+// ============================================================
+const STORAGE_KEY = 'kiln_ai_control_state_v1';
+
+function buildStateSnapshot() {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    databaseHistory,
+    shiftLog,
+    cycle,
+    pipeline,
+    stickyValues,
+    chartLabels,
+    actualZincData,
+    acceptableZoneData
+  };
+}
+
+function applyStateSnapshot(state) {
+  if (!state || typeof state !== 'object') return;
+
+  databaseHistory = Array.isArray(state.databaseHistory) ? state.databaseHistory : [];
+  shiftLog = Array.isArray(state.shiftLog) ? state.shiftLog : [];
+  cycle = Number.isFinite(state.cycle) ? state.cycle : 1;
+  pipeline = Array.isArray(state.pipeline) && state.pipeline.length === 2 ? state.pipeline : pipeline;
+  stickyValues = (state.stickyValues && typeof state.stickyValues === 'object')
+    ? { feed_moist: state.stickyValues.feed_moist ?? null, carb_moist: state.stickyValues.carb_moist ?? null }
+    : { feed_moist: null, carb_moist: null };
+
+  chartLabels.length = 0;
+  actualZincData.length = 0;
+  acceptableZoneData.length = 0;
+  if (Array.isArray(state.chartLabels)) {
+    state.chartLabels.forEach((lbl, i) => {
+      chartLabels.push(lbl);
+      actualZincData.push(state.actualZincData?.[i] ?? 0);
+      acceptableZoneData.push(state.acceptableZoneData?.[i] ?? CONFIG.acceptableZincCeiling);
+    });
+  }
+
+  trainPredictiveAiModel(); // AI_MODEL is a pure function of databaseHistory — recompute rather than trust a stored copy
+
+  updateHistoryUI();
+  renderPipeline();
+  clearInputs(); // blanks the live fields and refreshes the sticky "Prior: X%" hints from the restored stickyValues
+  $('log-entries').innerHTML = shiftLog.map(log => `<div class="log-entry">${log}</div>`).join('');
+
+  if (databaseHistory.length > 0) {
+    $('hdr-status').textContent = `✓ Adaptive Model Synced (${databaseHistory.length} Rows) — restored`;
+    $('hdr-status').className = 'hist-status loaded';
+  }
+
+  if (chartLabels.length > 0) {
+    if (!zincChartInstance) initChart();
+    zincChartInstance.update();
+    $('chart-wrap').style.display = 'block';
+  }
+}
+
+function updateSaveStatus() {
+  const el = $('save-status');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el.textContent = `Auto-saved to this browser at ${time} (${databaseHistory.length} rows, cycle ${cycle}).`;
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(buildStateSnapshot()));
+    updateSaveStatus();
+  } catch (err) {
+    // Can fail on a locked-down file:// origin, private browsing, or a full
+    // quota — the tool keeps working either way, it just won't remember
+    // state next time. The Download Backup button is unaffected by this.
+    console.warn('Local auto-save failed (Download Backup still works):', err);
+    const el = $('save-status');
+    if (el) el.textContent = 'Auto-save to this browser isn\u2019t available — use Download Backup instead.';
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    applyStateSnapshot(JSON.parse(raw));
+    updateSaveStatus();
+  } catch (err) {
+    console.warn('Saved local state could not be read (ignoring it):', err);
+  }
+}
+
+function downloadBackup() {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const blob = new Blob([JSON.stringify(buildStateSnapshot(), null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `kiln-ai-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function restoreFromFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const state = JSON.parse(e.target.result);
+      applyStateSnapshot(state);
+      saveState(); // the restored file becomes the new auto-save baseline too
+      alert(`Backup restored: ${state.databaseHistory?.length ?? 0} rows, cycle ${state.cycle ?? 1}.`);
+    } catch (err) {
+      alert('Could not read that file — it may not be a backup exported from this tool.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function clearLocalData() {
+  if (!confirm('This permanently erases the saved shift history, trained model, pipeline, and log stored in this browser. This cannot be undone — download a backup first if you want to keep it. Continue?')) return;
+
+  try { localStorage.removeItem(STORAGE_KEY); } catch (err) { /* nothing to clean up if it was never writable */ }
+
+  databaseHistory = [];
+  shiftLog = [];
+  cycle = 1;
+  pipeline = [
+    { dry_feed_tph: 16.2, applied_carbon_pct: 15.1 },
+    { dry_feed_tph: 15.9, applied_carbon_pct: 15.3 }
+  ];
+  stickyValues = { feed_moist: null, carb_moist: null };
+  chartLabels.length = 0;
+  actualZincData.length = 0;
+  acceptableZoneData.length = 0;
+  AI_MODEL = { intercept: 15.12, w_pellet: -0.05, w_casi: 1.54, w_zn: -0.62, rmse: 0.25 };
+
+  updateHistoryUI();
+  renderPipeline();
+  clearInputs();
+  $('log-entries').innerHTML = '';
+  $('hdr-status').textContent = 'Using Factory Default AI Matrix';
+  $('hdr-status').className = 'hist-status';
+  $('chart-wrap').style.display = 'none';
+  if (zincChartInstance) zincChartInstance.update();
+  $('save-status').textContent = 'Local data cleared. Not yet saved this session.';
+}
+
+renderPipeline();
+initChart();
+updateHistoryUI(); // sync the Historical AI Core display with actual AI_MODEL defaults on first load
+loadState(); // restore a previous session for this file, if this browser has one saved
+</script>
+</body>
+</html>
